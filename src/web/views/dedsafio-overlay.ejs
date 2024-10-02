@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dedsafio Overlay</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
+      
+        body {
+          margin: 0;
+          padding: 0;
+          font-family: 'Roboto', sans-serif;
+          color: #ffffff;
+          width: 100vw;
+          height: 100vh;
+          overflow: hidden;
+          background-color: transparent !important;
+        }
+      
+        .container {
+          position: relative;
+          width: 100%;
+          height: 100%;
+          background-color: transparent !important;
+        }
+      
+        .player {
+          position: absolute;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          background-color: #2a2a2a;
+          border: 2px solid #fdd1d1;
+          border-radius: 8px;
+          padding: 2px;
+          text-align: center;
+          width: 140px;
+          box-shadow: 0 4px 6px rgba(0,0,0,0.3), 0 0 0 2px rgba(253,209,209,0.3);
+          transition: opacity 0.3s ease-in-out;
+        }
+
+        .player.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+      
+        .player-name {
+          font-size: 20px;
+          font-weight: 700;
+          margin-bottom: 8px;
+          color: #ffffff;
+          padding: 2px 10px;
+          border-radius: 4px;
+          width: 100%;
+          box-sizing: border-box;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+        }
+      
+        .player img.skin {
+          width: 100px;
+          height: 100px;
+          object-fit: contain;
+          border: 2px solid #fdd1d1;
+          border-radius: 4px;
+          background-color: #3a3a3a;
+        }
+      
+        .player-status {
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          margin-top: 2px;
+          padding: 5px;
+          width: 100%;
+          background-color: rgba(253,209,209,0.1);
+          border-radius: 4px;
+        }
+
+        .soul{
+            width: 22px;
+            height: 30px;
+            margin: 0 10px;
+            filter: drop-shadow(0 2px 2px rgba(0,0,0,0.3));
+        }
+      
+        .heart{
+          width: 30px;
+          height: 30px;
+          margin: 0 10px;
+          filter: drop-shadow(0 2px 2px rgba(0,0,0,0.3));
+        }
+      
+        .dead img.skin {
+            filter: grayscale(100%) brightness(50%);
+            border-color: #c0392b;
+        }
+
+  .dead .heart {
+    opacity: 0.3;
+  }
+
+  .no-soul .soul {
+    opacity: 0.3;
+  }
+      
+      </style>
+  </head>
+  <body>
+    <div class="container" id="playersContainer">
+      <!-- Los jugadores se llenarán aquí dinámicamente -->
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        let isShowingPlayers = false;
+        let showPlayersTimeout;
+  
+        function createPlayerElement(player, index) {
+          const playerDiv = document.createElement("div");
+          playerDiv.className = `player hidden ${player.isDead ? 'dead' : ''} ${!player.hasSoul ? 'no-soul' : ''}`;
+          playerDiv.id = `player-${index}`;
+  
+          const playerImg = document.createElement("img");
+          playerImg.src = `https://mineskin.eu/armor/bust/${player.username}/100.png`;
+          playerImg.alt = player.username;
+          playerImg.className = "skin";
+          playerDiv.appendChild(playerImg);
+  
+          const playerName = document.createElement("div");
+          playerName.className = "player-name";
+          playerName.textContent = player.username;
+          playerDiv.appendChild(playerName);
+  
+          const playerStatus = document.createElement("div");
+          playerStatus.className = "player-status";
+  
+          const heartImg = document.createElement("img");
+          heartImg.src = "https://cdn.discordapp.com/attachments/1290718174756733040/1290741010095280242/hardcore-heart.png?ex=66fd8fbd&is=66fc3e3d&hm=203ced176a90b109ef716c29bf0c36a32d2e790ebdb899bdd509ad64431c5b80&";
+          heartImg.className = "heart";
+          heartImg.alt = "Heart";
+          playerStatus.appendChild(heartImg);
+  
+          const soulImg = document.createElement("img");
+          soulImg.src = "https://cdn.discordapp.com/attachments/1290718174756733040/1290740810899394713/Soul.png?ex=66fd8f8e&is=66fc3e0e&hm=2b8f65c084f339ca8b07cd117f5996f560d60c8f7fdd42d9c4412b3038cb608a&";
+          soulImg.className = "soul";
+          soulImg.alt = "Soul";
+          playerStatus.appendChild(soulImg);
+  
+          playerDiv.appendChild(playerStatus);
+  
+          return playerDiv;
+        }
+  
+        function updatePlayerPositions(positionsAndVisibility) {
+          positionsAndVisibility.forEach((item, index) => {
+            const playerElement = document.getElementById(`player-${index}`);
+            if (playerElement) {
+              playerElement.style.transform = `translate(${item.x}px, ${item.y}px)`;
+            }
+          });
+        }
+  
+        function updatePlayers(dedsafioData, positionsAndVisibility) {
+          const container = document.getElementById("playersContainer");
+          container.innerHTML = ""; // Limpiar los jugadores anteriores
+  
+          dedsafioData.forEach((player, index) => {
+            const playerElement = createPlayerElement(player, index);
+            container.appendChild(playerElement);
+          });
+  
+          updatePlayerPositions(positionsAndVisibility);
+          
+          if (isShowingPlayers) {
+            showPlayersImmediately();
+          }
+        }
+  
+        function showPlayersTemporarily() {
+            console.log('Iniciando showPlayersTemporarily');
+            if (showPlayersTimeout) {
+                clearTimeout(showPlayersTimeout);
+            }
+            isShowingPlayers = true;
+            showPlayersImmediately();
+
+            showPlayersTimeout = setTimeout(() => {
+                console.log('Ocultando jugadores después de 10 segundos');
+                isShowingPlayers = false;
+                hidePlayers();
+            }, 10000);
+        }
+  
+        function showPlayersImmediately() {
+          const players = document.querySelectorAll('.player');
+          players.forEach(player => player.classList.remove('hidden'));
+        }
+  
+        function hidePlayers() {
+          const players = document.querySelectorAll('.player');
+          players.forEach(player => player.classList.add('hidden'));
+        }
+  
+        socket.on('connect', () => {
+            console.log('Conectado al servidor');
+            socket.emit('joinRoom', 'dedsafio');
+        });
+  
+        socket.on('update', (data) => {
+          console.log('Received update:', data);
+          if (data.type === 'dedsafio') {
+            updatePlayers(data.dedsafio, data.positionsAndVisibility);
+          }
+        });
+  
+        socket.on("updatePositions", updatePlayerPositions);
+  
+        socket.on('showPlayers', () => {
+            console.log('Evento showPlayers recibido');
+            try {
+                showPlayersTemporarily();
+                console.log('Jugadores mostrados temporalmente');
+            } catch (error) {
+                console.error('Error al mostrar jugadores:', error);
+            }
+        });
+
+        socket.on('reloadOverlay', function() {
+          console.log('Reloading overlay');
+          window.location.reload();
+        });
+
+        socket.on('disconnect', () => {
+            console.log('Desconectado del servidor. Intentando reconexión...');
+            setTimeout(() => {
+                socket.connect();
+            }, 5000);
+        });
+  
+        // Manejar la desconexión
+        window.addEventListener('beforeunload', () => {
+          socket.emit('leaveRoom', 'dedsafio');
+        });
+      </script>
+  </body>
+</html>

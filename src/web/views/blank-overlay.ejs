@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Overlay en Blanco</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: transparent;
+        }
+    </style>
+</head>
+<body>
+    <!-- El cuerpo está intencionalmente vacío para mostrar un overlay en blanco -->
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+
+        socket.on('connect', () => {
+            console.log('Overlay en blanco conectado');
+            socket.emit('joinRoom', 'blank');
+        });
+
+        socket.on('reloadOverlay', function() {
+            console.log('Reloading overlay');
+            window.location.reload();
+        });
+
+        // Desconectarse de la sala al cerrar la página
+        window.addEventListener('beforeunload', () => {
+            socket.emit('leaveRoom', 'blank');
+        });
+    </script>
+</body>
+</html>

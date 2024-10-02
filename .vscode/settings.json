@@ -1,0 +1,8 @@
+{
+    "appService.zipIgnorePattern": [
+        "node_modules{,/**}",
+        ".vscode{,/**}"
+    ],
+    "appService.defaultWebAppToDeploy": "/subscriptions/66e222a7-da85-4e35-b2ce-4df4b1a8a5e2/resourceGroups/Bots/providers/Microsoft.Web/sites/thebigbot",
+    "appService.deploySubpath": "."
+}

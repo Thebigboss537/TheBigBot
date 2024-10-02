@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin - Prediction Positioning</title>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap");
+
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: "Roboto", sans-serif;
+        color: #ffffff;
+        width: 100vw;
+        height: 100vh;
+        overflow: hidden;
+        background-color: transparent;
+      }
+
+      .container {
+        position: relative;
+        width: 100%;
+        height: 100%;
+      }
+
+      .prediction {
+        position: absolute;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        background-color: rgba(40, 44, 52, 0.9);
+        border: 2px solid #ff69b4;
+        border-radius: 10px;
+        padding: 8px;
+        text-align: center;
+        width: 360px;
+        box-shadow: 0 0 15px rgba(0, 0, 0, 0.3);
+      }
+
+      .score-container {
+        display: flex;
+        justify-content: space-between;
+        width: 100%;
+        align-items: center;
+        background: linear-gradient(to right, #2c2c2c, #3a3a3a);
+        border-radius: 5px;
+        padding: 2px;
+        border-left: 3px solid rgb(0 86 189);
+        border-right: 3px solid #ff69b4;
+        margin-bottom: 4px;
+      }
+
+      .team {
+        display: flex;
+        align-items: center;
+        flex: 1;
+      }
+
+      .team.home {
+        justify-content: flex-start;
+      }
+      .team.away {
+        justify-content: flex-end;
+      }
+
+      .team img {
+        width: 28px;
+        height: 28px;
+      }
+
+      .team.home img {
+        margin-right: 5px;
+      }
+      .team.away img {
+        margin-left: 5px;
+        order: 1;
+      }
+
+      .team-name {
+        font-size: 1.2rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 200px;
+        font-weight: bold;
+        color: #e0e0e0;
+      }
+
+      .score {
+        font-size: 1.2rem;
+        margin: 0 10px;
+        color: #ffd700;
+        font-weight: bold;
+        flex-shrink: 0;
+      }
+
+      .count {
+        font-size: 1.2rem;
+        color: #ffb3da;
+        margin-top: 4px;
+        font-weight: 500;
+      }
+
+      #saveButton {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 8px 16px;
+        background-color: #4caf50;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+      }
+
+      #saveButton:hover {
+        background-color: #45a049;
+      }
+
+      .visibility-toggle {
+        position: absolute;
+        top: 5px;
+        right: 5px;
+        background-color: rgba(0, 0, 0, 0.5);
+        border: none;
+        color: white;
+        padding: 5px;
+        border-radius: 50%;
+        cursor: pointer;
+        font-size: 12px;
+      }
+
+      .prediction.hidden {
+        opacity: 0.5;
+      }
+
+      #resolutionReference {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 1920px;
+        height: 1080px;
+        border: 2px dashed #ff69b4;
+        pointer-events: none;
+        z-index: 1000;
+        opacity: 1;
+        box-sizing: border-box;
+        transition: opacity 0.3s ease;
+      }
+
+      #predictionsContainer {
+        position: relative;
+        width: 1920px;
+        height: 1080px;
+        transform-origin: top left;
+      }
+
+      #toggleReferenceButton {
+        position: fixed;
+        top: 10px;
+        left: 10px;
+        z-index: 1001;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container" id="predictionsContainer">
+      <div id="resolutionReference"></div>
+      <!-- Aquí se llenarán las predicciones -->
+    </div>
+    <button id="saveButton">Guardar Posiciones</button>
+    <button id="toggleReferenceButton">Toggle Reference Frame</button>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.9.1/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.9.1/Draggable.min.js"></script>
+    <script>
+      const socket = io();
+      let localPositions = null;
+      let hasUnsavedChanges = false;
+      let isReferenceVisible = true;
+
+      const teamLogos = {
+        "Las Santas FC":
+          "https://kingsleague.pro/_ipx/s_44x44/https://s3.eu-central-2.wasabisys.com/kama.sport/account/production/team/178367163.png",
+        "Real Titan":
+          "https://kingsleague.pro/_ipx/s_44x44/kama/production/team/113960080.png",
+      };
+
+      function getToken() {
+        return localStorage.getItem("token");
+      }
+
+      async function authenticateAdmin() {
+        const token = getToken();
+        if (!token) {
+          console.error("No token found, redirecting to login");
+          window.location.href = "/login";
+          return;
+        }
+
+        try {
+          const response = await fetch("/api/authenticate", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ token, adminType: "queensleague" }),
+          });
+
+          const data = await response.json();
+
+          if (data.success) {
+            console.log("Admin authentication successful");
+            initializeAdminPanel(data.user);
+          } else {
+            throw new Error(data.error || "Authentication failed");
+          }
+        } catch (error) {
+          console.error("Admin authentication failed:", error);
+          window.location.href = "/login";
+        }
+      }
+
+      function createPredictionElement(prediction, index) {
+        const predictionDiv = document.createElement("div");
+        predictionDiv.className = "prediction";
+        predictionDiv.id = `prediction-${index}`;
+
+        const scoreContainer = document.createElement("div");
+        scoreContainer.className = "score-container";
+
+        // Equipo local
+        const homeTeamDiv = document.createElement("div");
+        homeTeamDiv.className = "team home";
+
+        const homeLogo = document.createElement("img");
+        homeLogo.src = teamLogos["Las Santas FC"];
+        homeTeamDiv.appendChild(homeLogo);
+
+        const homeNameDiv = document.createElement("div");
+        homeNameDiv.className = "team-name";
+        homeNameDiv.textContent = "LAS SANTAS";
+        homeTeamDiv.appendChild(homeNameDiv);
+
+        scoreContainer.appendChild(homeTeamDiv);
+
+        // Puntuación
+        const scoreDiv = document.createElement("div");
+        scoreDiv.className = "score";
+        scoreDiv.textContent = `${prediction ? prediction.homeScore : "?"} - ${
+          prediction ? prediction.awayScore : "?"
+        }`;
+        scoreContainer.appendChild(scoreDiv);
+
+        // Equipo visitante
+        const awayTeamDiv = document.createElement("div");
+        awayTeamDiv.className = "team away";
+
+        const awayNameDiv = document.createElement("div");
+        awayNameDiv.className = "team-name";
+        awayNameDiv.textContent = "REAL TITÁN";
+        awayTeamDiv.appendChild(awayNameDiv);
+
+        const awayLogo = document.createElement("img");
+        awayLogo.src = teamLogos["Real Titan"];
+        awayTeamDiv.appendChild(awayLogo);
+
+        scoreContainer.appendChild(awayTeamDiv);
+
+        predictionDiv.appendChild(scoreContainer);
+
+        // Contador de votos
+        const countDiv = document.createElement("div");
+        countDiv.className = "count";
+        countDiv.textContent = `Votos: ${prediction ? prediction.count : 0}`;
+        predictionDiv.appendChild(countDiv);
+
+        const visibilityToggle = document.createElement("button");
+        visibilityToggle.className = "visibility-toggle";
+        visibilityToggle.textContent = "👁️";
+        visibilityToggle.onclick = function (event) {
+          event.stopPropagation();
+          toggleVisibility(predictionDiv);
+        };
+        predictionDiv.appendChild(visibilityToggle);
+
+        return predictionDiv;
+      }
+
+      function updatePredictionPositions(positions) {
+        if (hasUnsavedChanges) {
+          positions = localPositions;
+        } else {
+          localPositions = positions;
+        }
+        positions.forEach((position, index) => {
+          const predictionElement = document.getElementById(
+            `prediction-${index}`
+          );
+          if (predictionElement) {
+            gsap.set(predictionElement, {
+              x: position.x,
+              y: position.y,
+            });
+            predictionElement.classList.toggle("hidden", !position.visible);
+          }
+        });
+      }
+
+      function initDraggable() {
+        const predictions = document.getElementsByClassName("prediction");
+        Array.from(predictions).forEach((prediction) => {
+          Draggable.create(prediction, {
+            type: "x,y",
+            bounds: "#predictionsContainer",
+            edgeResistance: 0.65,
+            onDragStart: function () {
+              gsap.set(this.target, { zIndex: 10 });
+            },
+            onDragEnd: function () {
+              gsap.set(this.target, { zIndex: 1 });
+              hasUnsavedChanges = true;
+              updateLocalPositions();
+            },
+          });
+        });
+      }
+
+      function toggleVisibility(predictionElement) {
+        predictionElement.classList.toggle("hidden");
+        hasUnsavedChanges = true;
+        updateLocalPositions();
+      }
+
+      function updateLocalPositions() {
+        localPositions = Array.from(
+          document.getElementsByClassName("prediction")
+        ).map((pred, index) => {
+          const transform = new WebKitCSSMatrix(
+            window.getComputedStyle(pred).transform
+          );
+          return {
+            x: transform.m41,
+            y: transform.m42,
+            visible: !pred.classList.contains("hidden"),
+          };
+        });
+      }
+
+      function ensureReferenceFrameExists() {
+        let reference = document.getElementById("resolutionReference");
+        if (!reference) {
+          console.log(
+            "Elemento de referencia no encontrado, creándolo dinámicamente"
+          );
+          reference = document.createElement("div");
+          reference.id = "resolutionReference";
+          const container = document.getElementById("predictionsContainer");
+          if (container) {
+            container.prepend(reference);
+          } else {
+            console.error("No se pudo encontrar el contenedor de predicciones");
+            return null;
+          }
+        }
+        reference.style.position = "absolute";
+        reference.style.top = "0";
+        reference.style.left = "0";
+        reference.style.width = "100%";
+        reference.style.height = "100%";
+        reference.style.border = "2px dashed #FF69B4";
+        reference.style.pointerEvents = "none";
+        reference.style.zIndex = "1000";
+        reference.style.opacity = "1";
+        reference.style.boxSizing = "border-box";
+        return reference;
+      }
+
+      function adjustPredictionsContainer() {
+        const container = document.getElementById("predictionsContainer");
+        const scale = Math.min(
+          window.innerWidth / 1920,
+          window.innerHeight / 1080
+        );
+
+        container.style.transform = `scale(${scale})`;
+        console.log("Ajuste aplicado. Escala:", scale);
+      }
+
+      function toggleReferenceFrame() {
+        const reference = ensureReferenceFrameExists();
+        if (reference) {
+          isReferenceVisible = !isReferenceVisible;
+          reference.style.opacity = isReferenceVisible ? "1" : "0";
+          console.log(
+            "Estado del marco de referencia:",
+            isReferenceVisible ? "visible" : "oculto"
+          );
+        } else {
+          console.error(
+            "No se pudo realizar la operación en el marco de referencia"
+          );
+        }
+      }
+
+      function initializeReferenceFrame() {
+        const reference = ensureReferenceFrameExists();
+        const toggleButton = document.getElementById("toggleReferenceButton");
+
+        if (reference && toggleButton) {
+          reference.style.opacity = "1";
+          toggleButton.addEventListener("click", toggleReferenceFrame);
+          console.log("Marco de referencia inicializado");
+        } else {
+          console.error(
+            "No se pudo inicializar el marco de referencia o el botón de alternancia"
+          );
+        }
+      }
+
+      function initializeAdminPanel(user) {
+        console.log(`Initializing admin panel for ${user.username}`);
+        connectSocket();
+      }
+
+      function connectSocket() {
+        socket.on("connect", () => {
+          console.log("Socket connected");
+          socket.emit("joinRoom", "queensleague");
+        });
+
+        socket.on("update", function (data) {
+          console.log("Received update:", data);
+          updateAdminView(data);
+        });
+
+        socket.on("positionsSaved", function (response) {
+          if (response.success) {
+            alert("Posiciones y visibilidad guardadas con éxito");
+          } else {
+            alert("Error al guardar las posiciones y visibilidad: " + response.error);
+          }
+        });
+      }
+
+      function updateAdminView(data) {
+        if (data.type !== 'queensleague') return;
+
+        const { predictions, positionsAndVisibility } = data;
+        const container = document.getElementById("predictionsContainer");
+
+        if (!hasUnsavedChanges) {
+          container.innerHTML = "";
+
+          for (let i = 0; i < 5; i++) {
+            const predictionElement = createPredictionElement(predictions[i], i);
+            container.appendChild(predictionElement);
+          }
+
+          updatePredictionPositions(positionsAndVisibility);
+          initDraggable();
+        } else {
+          predictions.forEach((prediction, index) => {
+            const predictionElement = document.getElementById(`prediction-${index}`);
+            if (predictionElement) {
+              const scoreContainer = predictionElement.querySelector(".score-container");
+              if (scoreContainer) {
+                const scoreDiv = scoreContainer.querySelector(".score");
+                if (scoreDiv) {
+                  scoreDiv.textContent = `${prediction ? prediction.homeScore : "?"} - ${prediction ? prediction.awayScore : "?"}`;
+                }
+              }
+              const countDiv = predictionElement.querySelector(".count");
+              if (countDiv) {
+                countDiv.textContent = `Votos: ${prediction ? prediction.count : 0}`;
+              }
+            }
+          });
+        }
+        ensureReferenceFrameExists();
+      }
+
+
+      document.addEventListener("DOMContentLoaded", () => {
+        authenticateAdmin();
+        adjustPredictionsContainer();
+        initializeReferenceFrame();
+        window.addEventListener("resize", adjustPredictionsContainer);
+        console.log("Inicialización completa");
+      });
+
+      document.getElementById("saveButton").addEventListener("click", function () {
+        updateLocalPositions();
+        const token = getToken();
+        console.log("Positions to save:", localPositions);
+        socket.emit("savePositions", {
+          positions: localPositions,
+          token: token,
+          type: "queensleague",
+        });
+        hasUnsavedChanges = false;
+      });
+
+      // Asegúrate de desconectarte de la sala cuando el usuario cierre la página
+      window.addEventListener('beforeunload', () => {
+        socket.emit('leaveRoom', 'queensleague');
+      });
+    </script>
+  </body>
+</html>

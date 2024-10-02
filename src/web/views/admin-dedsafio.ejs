@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin - Dedsafio</title>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
+      
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: 'Roboto', sans-serif;
+        color: #ffffff;
+        width: 100vw;
+        height: 100vh;
+        overflow: hidden;
+        background-color: transparent !important;
+      }
+    
+      .container {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        background-color: transparent !important;
+      }
+    
+      .player {
+        position: absolute;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        background-color: #2a2a2a;
+        border: 2px solid #fdd1d1;
+        border-radius: 8px;
+        padding: 2px;
+        text-align: center;
+        width: 140px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.3), 0 0 0 2px rgba(253,209,209,0.3);
+      }
+    
+      .player-name {
+        font-size: 20px;
+        font-weight: 700;
+        margin-bottom: 8px;
+        color: #ffffff;
+        padding: 2px 10px;
+        border-radius: 4px;
+        width: 100%;
+        box-sizing: border-box;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+      }
+    
+      .player img.skin {
+        width: 100px;
+        height: 100px;
+        object-fit: contain;
+        border: 2px solid #fdd1d1;
+        border-radius: 4px;
+        background-color: #3a3a3a;
+      }
+    
+      .player-status {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin-top: 2px;
+        padding: 5px;
+        width: 100%;
+        background-color: rgba(253,209,209,0.1);
+        border-radius: 4px;
+      }
+
+      .soul{
+          width: 22px;
+          height: 30px;
+          margin: 0 10px;
+          filter: drop-shadow(0 2px 2px rgba(0,0,0,0.3));
+      }
+    
+      .heart{
+        width: 30px;
+        height: 30px;
+        margin: 0 10px;
+        filter: drop-shadow(0 2px 2px rgba(0,0,0,0.3));
+      }
+    
+      .dead img.skin {
+          filter: grayscale(100%) brightness(50%);
+          border-color: #c0392b;
+      }
+
+      .dead .heart {
+        opacity: 0.3;
+      }
+
+      .no-soul .soul {
+        opacity: 0.3;
+      }
+
+      #saveButton {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 8px 16px;
+        background-color: #4caf50;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+      }
+
+      #saveButton:hover {
+        background-color: #45a049;
+      }
+
+      #resolutionReference {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 1920px;
+        height: 1080px;
+        border: 2px dashed #4CAF50;
+        pointer-events: none;
+        z-index: 1000;
+        opacity: 1;
+        box-sizing: border-box;
+        transition: opacity 0.3s ease;
+      }
+
+      #playersContainer {
+        position: relative;
+        width: 1920px;
+        height: 1080px;
+        transform-origin: top left;
+      }
+
+      #toggleReferenceButton {
+        position: fixed;
+        top: 10px;
+        left: 10px;
+        z-index: 1001;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container" id="playersContainer">
+      <div id="resolutionReference"></div>
+      <!-- Los jugadores se llenarán aquí dinámicamente -->
+    </div>
+    <button id="saveButton">Guardar Posiciones</button>
+    <button id="toggleReferenceButton">Toggle Reference Frame</button>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.9.1/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.9.1/Draggable.min.js"></script>
+    <script>
+      const socket = io();
+      let localPositions = null;
+      let hasUnsavedChanges = false;
+      let isReferenceVisible = true;
+
+      function getToken() {
+        return localStorage.getItem("token");
+      }
+
+      async function authenticateAdmin() {
+        const token = getToken();
+        if (!token) {
+          console.error("No token found, redirecting to login");
+          window.location.href = "/login";
+          return;
+        }
+
+        try {
+          const response = await fetch("/api/authenticate", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ token, adminType: "admin-dedsafio" }),
+          });
+
+          const data = await response.json();
+
+          if (data.success) {
+            console.log("Admin authentication successful");
+            initializeAdminPanel(data.user);
+          } else {
+            throw new Error(data.error || "Authentication failed");
+          }
+        } catch (error) {
+          console.error("Admin authentication failed:", error);
+          window.location.href = "/login";
+        }
+      }
+
+      function createPlayerElement(player, index) {
+        const playerDiv = document.createElement("div");
+        playerDiv.className = `player ${player.isDead ? 'dead' : ''} ${!player.hasSoul ? 'no-soul' : ''}`;
+        playerDiv.id = `player-${index}`;
+
+        const playerName = document.createElement("div");
+        playerName.className = "player-name";
+        playerName.textContent = player.username;
+        playerDiv.appendChild(playerName);
+
+        const playerImg = document.createElement("img");
+        playerImg.src = `https://mineskin.eu/armor/bust/${player.username}/100.png`;
+        playerImg.alt = player.username;
+        playerImg.className = "skin";
+        playerDiv.appendChild(playerImg);
+
+        const playerStatus = document.createElement("div");
+        playerStatus.className = "player-status";
+
+        const heartImg = document.createElement("img");
+        heartImg.src = "https://cdn.discordapp.com/attachments/1290718174756733040/1290741010095280242/hardcore-heart.png?ex=66fd8fbd&is=66fc3e3d&hm=203ced176a90b109ef716c29bf0c36a32d2e790ebdb899bdd509ad64431c5b80&";
+        heartImg.className = "heart";
+        heartImg.alt = "Heart";
+        playerStatus.appendChild(heartImg);
+
+        const soulImg = document.createElement("img");
+        soulImg.src = "https://cdn.discordapp.com/attachments/1290718174756733040/1290740810899394713/Soul.png?ex=66fd8f8e&is=66fc3e0e&hm=2b8f65c084f339ca8b07cd117f5996f560d60c8f7fdd42d9c4412b3038cb608a&";
+        soulImg.className = "soul";
+        soulImg.alt = "Soul";
+        playerStatus.appendChild(soulImg);
+
+        playerDiv.appendChild(playerStatus);
+
+        return playerDiv;
+      }
+
+      function updatePlayerPositions(positions) {
+        if (hasUnsavedChanges) {
+          positions = localPositions;
+        } else {
+          localPositions = positions;
+        }
+        positions.forEach((position, index) => {
+          const playerElement = document.getElementById(`player-${index}`);
+          if (playerElement) {
+            gsap.set(playerElement, {
+              x: position.x,
+              y: position.y,
+            });
+          }
+        });
+      }
+
+      function initDraggable() {
+        const players = document.getElementsByClassName("player");
+        Array.from(players).forEach((player) => {
+          Draggable.create(player, {
+            type: "x,y",
+            bounds: "#playersContainer",
+            edgeResistance: 0.65,
+            onDragStart: function () {
+              gsap.set(this.target, { zIndex: 10 });
+            },
+            onDragEnd: function () {
+              gsap.set(this.target, { zIndex: 1 });
+              hasUnsavedChanges = true;
+              updateLocalPositions();
+            },
+          });
+        });
+      }
+
+      function updateLocalPositions() {
+        localPositions = Array.from(
+          document.getElementsByClassName("player")
+        ).map((player, index) => {
+          const transform = new WebKitCSSMatrix(
+            window.getComputedStyle(player).transform
+          );
+          return {
+            x: transform.m41,
+            y: transform.m42,
+          };
+        });
+      }
+
+      function ensureReferenceFrameExists() {
+        let reference = document.getElementById("resolutionReference");
+        if (!reference) {
+          console.log(
+            "Elemento de referencia no encontrado, creándolo dinámicamente"
+          );
+          reference = document.createElement("div");
+          reference.id = "resolutionReference";
+          const container = document.getElementById("playersContainer");
+          if (container) {
+            container.prepend(reference);
+          } else {
+            console.error("No se pudo encontrar el contenedor de jugadores");
+            return null;
+          }
+        }
+        reference.style.position = "absolute";
+        reference.style.top = "0";
+        reference.style.left = "0";
+        reference.style.width = "100%";
+        reference.style.height = "100%";
+        reference.style.border = "2px dashed #4CAF50";
+        reference.style.pointerEvents = "none";
+        reference.style.zIndex = "1000";
+        reference.style.opacity = "1";
+        reference.style.boxSizing = "border-box";
+        return reference;
+      }
+
+      function adjustPlayersContainer() {
+        const container = document.getElementById("playersContainer");
+        const scale = Math.min(
+          window.innerWidth / 1920,
+          window.innerHeight / 1080
+        );
+
+        container.style.transform = `scale(${scale})`;
+        console.log("Ajuste aplicado. Escala:", scale);
+      }
+
+      function toggleReferenceFrame() {
+        const reference = ensureReferenceFrameExists();
+        if (reference) {
+          isReferenceVisible = !isReferenceVisible;
+          reference.style.opacity = isReferenceVisible ? "1" : "0";
+          console.log(
+            "Estado del marco de referencia:",
+            isReferenceVisible ? "visible" : "oculto"
+          );
+        } else {
+          console.error(
+            "No se pudo realizar la operación en el marco de referencia"
+          );
+        }
+      }
+
+      function initializeReferenceFrame() {
+        const reference = ensureReferenceFrameExists();
+        const toggleButton = document.getElementById("toggleReferenceButton");
+
+        if (reference && toggleButton) {
+          reference.style.opacity = "1";
+          toggleButton.addEventListener("click", toggleReferenceFrame);
+          console.log("Marco de referencia inicializado");
+        } else {
+          console.error(
+            "No se pudo inicializar el marco de referencia o el botón de alternancia"
+          );
+        }
+      }
+
+      function initializeAdminPanel(user) {
+        console.log(`Initializing admin panel for ${user.username}`);
+        connectSocket();
+      }
+
+      function connectSocket() {
+        socket.on("connect", () => {
+          console.log("Socket connected");
+          socket.emit("joinRoom", "dedsafio");
+        });
+
+        socket.on("update", function (data) {
+          console.log("Received update:", data);
+          updateAdminView(data);
+        });
+
+        socket.on("positionsSaved", function (response) {
+          if (response.success) {
+            alert("Posiciones guardadas con éxito");
+          } else {
+            alert("Error al guardar las posiciones: " + response.error);
+          }
+        });
+      }
+
+      function updateAdminView(data) {
+        if (data.type !== 'dedsafio') return;
+
+        const { dedsafio, positionsAndVisibility } = data;
+        const container = document.getElementById("playersContainer");
+
+        if (!hasUnsavedChanges) {
+          container.innerHTML = "";
+
+          dedsafio.forEach((player, index) => {
+            const playerElement = createPlayerElement(player, index);
+            container.appendChild(playerElement);
+          });
+
+          updatePlayerPositions(positionsAndVisibility);
+          initDraggable();
+        } else {
+          dedsafio.forEach((player, index) => {
+            const playerElement = document.getElementById(`player-${index}`);
+            if (playerElement) {
+              playerElement.classList.toggle('dead', player.isDead);
+              const playerImg = playerElement.querySelector('img');
+              if (playerImg) {
+                playerImg.src = `https://mineskin.eu/armor/bust/${player.username}/100.png`;
+              }
+              const playerName = playerElement.querySelector('.player-name');
+              if (playerName) {
+                playerName.textContent = player.username;
+              }
+            }
+          });
+        }
+        ensureReferenceFrameExists();
+      }
+
+      document.addEventListener("DOMContentLoaded", () => {
+        authenticateAdmin();
+        adjustPlayersContainer();
+        initializeReferenceFrame();
+        window.addEventListener("resize", adjustPlayersContainer);
+        console.log("Inicialización completa");
+      });
+
+      document.getElementById("saveButton").addEventListener("click", function () {
+        updateLocalPositions();
+        const token = getToken();
+        console.log("Positions to save:", localPositions);
+        socket.emit("savePositions", {
+          positions: localPositions,
+          token: token,
+          type: 'dedsafio'
+        });
+        hasUnsavedChanges = false;
+      });
+
+      // Asegúrate de desconectarte de la sala cuando el usuario cierre la página
+      window.addEventListener('beforeunload', () => {
+        socket.emit('leaveRoom', 'dedsafio');
+      });
+    </script>
+  </body>
+</html>

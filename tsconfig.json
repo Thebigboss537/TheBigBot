@@ -1,0 +1,17 @@
+{
+    "compilerOptions": {
+      "esModuleInterop": true,
+    "moduleResolution": "Node",
+    "module": "ESNext",
+    "target": "ESNext",
+      
+    "outDir": "./dist", // Output directory for compiled files
+     
+      "rootDir": "./src",
+      "strict": true,
+      "skipLibCheck": true,
+      "forceConsistentCasingInFileNames": true
+    },
+    "include": ["src/**/*"],
+    "exclude": ["node_modules"]
+  }

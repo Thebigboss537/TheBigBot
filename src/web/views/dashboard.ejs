@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            max-width: 800px;
+            margin: auto;
+            background: white;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .card {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .card-header {
+            background-color: #f8f8f8;
+            padding: 10px;
+            margin: -15px -15px 15px;
+            border-bottom: 1px solid #ddd;
+        }
+        .btn {
+            display: inline-block;
+            padding: 10px 15px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        .btn:disabled {
+            background-color: #cccccc;
+        }
+        .btn-secondary {
+            background-color: #6c757d;
+        }
+        .btn-success {
+            background-color: #28a745;
+        }
+        .btn-danger {
+            background-color: #dc3545;
+        }
+        .alert {
+            padding: 15px;
+            margin-bottom: 20px;
+            border: 1px solid transparent;
+            border-radius: 4px;
+        }
+        .alert-danger {
+            color: #721c24;
+            background-color: #f8d7da;
+            border-color: #f5c6cb;
+        }
+        .status-active {
+            color: green;
+            font-weight: bold;
+        }
+        .status-inactive {
+            color: red;
+            font-weight: bold;
+        }
+        .input-group {
+            margin-bottom: 15px;
+        }
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        .input-group input, .input-group select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .admin-btn {
+            background-color: #17a2b8;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .admin-btn:hover {
+            background-color: #138496;
+        }
+        .table-container {
+            overflow-x: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .checkbox-center {
+            text-align: center;
+        }
+        .overlay-btn {
+        margin-right: 10px;
+    }
+
+    .overlay-btn.active {
+        box-shadow: 0 0 0 0.2rem rgba(0,123,255,.5);
+    }
+
+    #blankOverlayBtn {
+        background-color: #6c757d;
+        border-color: #6c757d;
+    }
+
+    #queensleagueOverlayBtn {
+        background-color: #007bff;
+        border-color: #007bff;
+    }
+
+    #dedsafioOverlayBtn {
+        background-color: #28a745;
+        border-color: #28a745;
+    }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Dashboard</h1>
+        
+        <div class="card">
+            <div class="card-header">
+                <h2>Estado del Token y Sesión</h2>
+            </div>
+            <div id="tokenStatus">Cargando...</div>
+            <div id="sessionStatus"></div>
+            <div id="tokenInfo"></div>
+            <div id="error" class="alert alert-danger" style="display: none;"></div>
+            <div style="margin-top: 15px;">
+                <button id="checkTokenBtn" class="btn">Verificar Token y Sesión</button>
+                <button id="newTokenBtn" class="btn btn-secondary" style="display: none;">Asignar Nuevo Token</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h2>Control del Bot</h2>
+            </div>
+            <div id="botStatus">Cargando estado del bot...</div>
+            <div id="botError" class="alert alert-danger" style="display: none;"></div>
+            <div class="input-group">
+                <label for="twitchUsername">Nombre de usuario de Twitch:</label>
+                <input type="text" id="twitchUsername" placeholder="Ingrese el nombre de usuario de Twitch">
+            </div>
+            <div style="margin-top: 15px;">
+                <button id="startBotBtn" class="btn btn-success" disabled>Iniciar Bot</button>
+                <button id="stopBotBtn" class="btn btn-danger" disabled>Detener Bot</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h2>Panel de Administración</h2>
+            </div>
+            <div style="margin-top: 15px;">
+                <button id="openAdminBtn" class="admin-btn">Abrir Panel de Administración</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h2>Control de Overlay</h2>
+            </div>
+            <div style="margin-top: 15px;">
+                <button id="blankOverlayBtn" class="btn btn-secondary overlay-btn">Overlay en Blanco</button>
+                <button id="queensleagueOverlayBtn" class="btn btn-primary overlay-btn">QueensLeague</button>
+                <button id="dedsafioOverlayBtn" class="btn btn-success overlay-btn">Dedsafio</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h2>Tabla Dedsafio</h2>
+            </div>
+            <div class="table-container">
+                <table id="dedsafioTable">
+                    <thead>
+                        <tr>
+                            <th>Username</th>
+                            <th>Is Dead</th>
+                            <th>Has Soul</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Las filas se llenarán dinámicamente -->
+                    </tbody>
+                </table>
+            </div>
+            <div style="margin-top: 15px;">
+                <button id="addRowBtn" class="btn btn-success">Agregar Fila</button>
+                <button id="saveTableBtn" class="btn">Guardar Cambios</button>
+            </div>
+        </div>
+    </div>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        let hasUnsavedChanges = false;
+        let twitchUsernameInput, botStatus, botError, startBotBtn, stopBotBtn;
+        const socket = io();
+
+        function getTokenFromLocalStorage() {
+            return localStorage.getItem('token');
+        }
+
+        function redirectToLogin() {
+            window.location.href = '/login';
+        }
+
+        function handleUnauthorized() {
+            localStorage.removeItem('token');
+            redirectToLogin();
+        }
+
+    // Funciones principales
+    function authenticateAdmin() {
+        const token = getTokenFromLocalStorage();
+        if (!token) {
+            console.error("No token found, redirecting to login");
+            redirectToLogin();
+            return;
+        }
+
+        fetch("/api/authenticate", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ token, adminType: "dashboard" }),
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                console.log("Admin authentication successful");
+                initializeDashboard(data.user);
+            } else {
+                throw new Error(data.error || "Authentication failed");
+            }
+        })
+        .catch(error => {
+            console.error("Admin authentication failed:", error);
+            handleUnauthorized();
+        });
+    }
+
+    function initializeDashboard(user) {
+        console.log(`Initializing dashboard for ${user.username}`);
+        connectSocket();
+        setupEventListeners();
+        checkTokenAndSession();
+        checkBotStatus();
+    }
+
+    function updateDedsafioTable(data) {
+        const {users} = data;
+        const tableBody = document.querySelector('#dedsafioTable tbody');
+        
+        if (hasUnsavedChanges) {
+            // Si hay cambios no guardados, solo actualiza los datos que no han cambiado
+            users.forEach((user, index) => {
+                const existingRow = tableBody.rows[index];
+                if (existingRow) {
+                    const usernameInput = existingRow.querySelector('.username-input');
+                    const isDeadInput = existingRow.querySelector('.isDead-input');
+                    const hasSoulInput = existingRow.querySelector('.hasSoul-input');
+                    
+                    if (usernameInput.value === user.username) {
+                        isDeadInput.checked = user.isDead;
+                        hasSoulInput.checked = user.hasSoul;
+                    }
+                } else {
+                    // Si es una nueva fila, la añadimos
+                    addNewRow(user);
+                }
+            });
+        } else {
+            // Si no hay cambios pendientes, actualiza toda la tabla
+            tableBody.innerHTML = '';
+            users.forEach((user) => addNewRow(user));
+        }
+    }
+
+    function checkTokenAndSession() {
+        const token = getTokenFromLocalStorage();
+        const tokenStatus = document.getElementById('tokenStatus');
+        const tokenInfo = document.getElementById('tokenInfo');
+        const errorDiv = document.getElementById('error');
+        const checkTokenBtn = document.getElementById('checkTokenBtn');
+        const newTokenBtn = document.getElementById('newTokenBtn');
+
+        tokenStatus.textContent = 'Cargando...';
+        tokenInfo.textContent = '';
+        errorDiv.style.display = 'none';
+        checkTokenBtn.disabled = true;
+        newTokenBtn.style.display = 'none';
+
+        fetch('/verified_tokenBot', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ token: token })
+        })
+            .then(response => {
+                if (!response.ok) {
+                    if (response.status === 401) throw new Error('unauthorized');
+                    if (response.status === 500) throw new Error('Error 500: Token no válido');
+                    throw new Error('Error en la respuesta del servidor');
+                }
+                return response.json();
+            })
+            .then(data => {
+                tokenStatus.textContent = 'Token interno verificado';
+                tokenInfo.textContent = JSON.stringify(data, null, 2);
+            })
+            .catch(error => {
+                if (error.message === 'unauthorized') {
+                    handleUnauthorized();
+                } else {
+                    errorDiv.textContent = error.message;
+                    errorDiv.style.display = 'block';
+                    if (error.message.includes('500')) {
+                        newTokenBtn.style.display = 'inline-block';
+                    }
+                }
+            })
+            .finally(() => {
+                checkTokenBtn.disabled = false;
+            });
+    }
+
+    function checkBotStatus() {
+        const token = getTokenFromLocalStorage();
+        const botStatus = document.getElementById('botStatus');
+        const botError = document.getElementById('botError');
+        const startBotBtn = document.getElementById('startBotBtn');
+        const stopBotBtn = document.getElementById('stopBotBtn');
+        const twitchUsernameInput = document.getElementById('twitchUsername');
+
+        fetch('/bot_status', {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        })
+        .then(response => {
+            if (!response.ok) throw new Error('Error al obtener el estado del bot');
+            return response.json();
+        })
+        .then(data => {
+            botStatus.textContent = `Estado del bot: ${data.status === 'running' ? 'Activo' : 'Inactivo'}`;
+            botStatus.className = data.status === 'running' ? 'status-active' : 'status-inactive';
+            startBotBtn.disabled = data.status === 'running';
+            stopBotBtn.disabled = data.status !== 'running';
+            twitchUsernameInput.disabled = data.status === 'running';
+        })
+        .catch(error => {
+            botError.textContent = error.message;
+            botError.style.display = 'block';
+        });
+    }
+
+    function setupEventListeners() {
+        twitchUsernameInput = document.getElementById('twitchUsername');
+        botStatus = document.getElementById('botStatus');
+        botError = document.getElementById('botError');
+        startBotBtn = document.getElementById('startBotBtn');
+        stopBotBtn = document.getElementById('stopBotBtn');
+
+
+        document.getElementById('checkTokenBtn').addEventListener('click', checkTokenAndSession);
+        document.getElementById('newTokenBtn').addEventListener('click', requestNewToken);
+        document.getElementById('startBotBtn').addEventListener('click', startBot);
+        document.getElementById('stopBotBtn').addEventListener('click', stopBot);
+        document.getElementById('openAdminBtn').addEventListener('click', () => window.open('/admin', '_blank'));
+
+        document.getElementById('addRowBtn').addEventListener('click', () => {
+            addNewRow();
+            hasUnsavedChanges = true;
+        });
+        document.getElementById('saveTableBtn').addEventListener('click', saveDedsafioTable);
+        document.getElementById('dedsafioTable').addEventListener('click', handleTableClick);
+
+        document.getElementById('blankOverlayBtn').addEventListener('click', () => changeOverlayType('blank'));
+        document.getElementById('queensleagueOverlayBtn').addEventListener('click', () => changeOverlayType('queensleague'));
+        document.getElementById('dedsafioOverlayBtn').addEventListener('click', () => changeOverlayType('dedsafio'));
+    }
+
+    function startBot() {
+                const token = getTokenFromLocalStorage();
+                const twitchUsername = twitchUsernameInput.value.trim();
+                
+                if (!twitchUsername) {
+                    botError.textContent = 'Por favor, ingrese un nombre de usuario de Twitch';
+                    botError.style.display = 'block';
+                    return;
+                }
+
+                fetch('/api/start-bot', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ twitchUsername: twitchUsername })
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Error al iniciar el bot');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    botStatus.textContent = 'Bot iniciado correctamente';
+                    botStatus.className = 'status-active';
+                    botError.style.display = 'none';
+                    checkBotStatus(); // Actualizar el estado después de iniciar
+                })
+                .catch(error => {
+                    botError.textContent = error.message;
+                    botError.style.display = 'block';
+                });
+            }
+
+    function stopBot() {
+                const token = getTokenFromLocalStorage();
+                fetch('/api/stop-bot', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Error al detener el bot');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    botStatus.textContent = 'Bot detenido correctamente';
+                    botStatus.className = 'status-inactive';
+                    checkBotStatus(); // Actualizar el estado después de detener
+                })
+                .catch(error => {
+                    botError.textContent = error.message;
+                    botError.style.display = 'block';
+                });
+            }
+
+    function requestNewToken() {
+        // Implementa la lógica para solicitar un nuevo token
+    }
+    
+    function changeOverlayType(overlayType) {
+        socket.emit('changeOverlay', overlayType);
+        updateOverlayButtons(overlayType);
+    }
+
+    function updateOverlayButtons(activeOverlay) {
+        const buttons = document.querySelectorAll('.overlay-btn');
+        buttons.forEach(button => {
+            button.classList.remove('active');
+            if (button.id === `${activeOverlay}OverlayBtn`) {
+                button.classList.add('active');
+            }
+        });
+    }
+
+    function addNewRow(user = {}) {
+        const tableBody = document.querySelector('#dedsafioTable tbody');
+        const newRow = tableBody.insertRow();
+        newRow.innerHTML = `
+            <td><input type="text" value="${user.username || ''}" class="username-input"></td>
+            <td class="checkbox-center"><input type="checkbox" ${user.isDead ? 'checked' : ''} class="isDead-input"></td>
+            <td class="checkbox-center"><input type="checkbox" ${user.hasSoul ? 'checked' : ''} class="hasSoul-input"></td>
+            <td><button class="btn btn-danger delete-btn">Eliminar</button></td>
+        `;
+        newRow.querySelector('.username-input').addEventListener('input', () => hasUnsavedChanges = true);
+        newRow.querySelector('.isDead-input').addEventListener('change', () => hasUnsavedChanges = true);
+        newRow.querySelector('.hasSoul-input').addEventListener('change', () => hasUnsavedChanges = true);
+    }
+
+    function saveDedsafioTable() {
+        const tableData = Array.from(document.querySelectorAll('#dedsafioTable tbody tr')).map(row => ({
+            username: row.querySelector('.username-input').value,
+            isDead: row.querySelector('.isDead-input').checked,
+            hasSoul: row.querySelector('.hasSoul-input').checked
+        }));
+
+        const token = getTokenFromLocalStorage();
+        fetch('/api/saveDedsafioTable', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ data: tableData })
+        })
+        .then(response => {
+            if (!response.ok) throw new Error('Error al guardar los datos');
+            return response.json();
+        })
+        .then(data => {
+            alert('Datos guardados con éxito');
+            hasUnsavedChanges = false;
+        })
+        .catch(error => {
+            alert('Error al guardar los datos: ' + error.message);
+        });
+    }
+
+    function handleTableClick(event) {
+        if (event.target.classList.contains('delete-btn')) {
+            event.target.closest('tr').remove();
+            hasUnsavedChanges = true;
+        }
+    }
+
+    // Inicialización
+    document.addEventListener('DOMContentLoaded', () => {
+        if (!getTokenFromLocalStorage()) {
+            redirectToLogin();
+        } else {
+            authenticateAdmin();
+        }
+    });
+
+    function connectSocket() {
+        socket.on("connect", () => {
+          console.log("Socket connected");
+          socket.emit('joinRoom', 'dashboard');
+        });
+
+        socket.on("update", function (data) {
+          console.log("Received update:", data);
+          updateDedsafioTable(data);
+        });
+
+    }
+
+    // Desconectarse de la sala al cerrar la página
+    window.addEventListener('beforeunload', () => {
+        socket.emit('leaveRoom', 'dashboard');
+    });
+</script>
+</body>
+</html>

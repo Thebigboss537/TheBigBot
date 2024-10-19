@@ -27,3 +27,5 @@ logs
 
 database.sqlite
 token.json
+
+.vscode/

@@ -125,7 +125,7 @@
     }
 
     .overlay-btn.active {
-        box-shadow: 0 0 0 0.2rem rgba(0,123,255,.5);
+        box-shadow: 0 0 0 0.2rem rgb(255, 0, 0);
     }
 
     #blankOverlayBtn {
@@ -167,9 +167,9 @@
                 <h2>Control del Bot</h2>
             </div>
             <div id="botStatus">Cargando estado del bot...</div>
+            <div id="username-channel-connected">Cargando usuario</div>
             <div id="botError" class="alert alert-danger" style="display: none;"></div>
             <div class="input-group">
-                <label for="twitchUsername">Nombre de usuario de Twitch:</label>
                 <input type="text" id="twitchUsername" placeholder="Ingrese el nombre de usuario de Twitch">
             </div>
             <div style="margin-top: 15px;">
@@ -183,8 +183,11 @@
                 <h2>Panel de Administración</h2>
             </div>
             <div style="margin-top: 15px;">
-                <button id="openAdminBtn" class="admin-btn">Abrir Panel de Administración</button>
+                <button id="openAdminBtnqueens" class="admin-btn">Abrir Panel de Administración de queensleague</button>
+                <button id="openAdminBtndedsafio" class="admin-btn">Abrir Panel de Administración de dedsafio</button>
             </div>
+
+            
         </div>
 
         <div class="card">
@@ -226,7 +229,7 @@
     <script src="/socket.io/socket.io.js"></script>
     <script>
         let hasUnsavedChanges = false;
-        let twitchUsernameInput, botStatus, botError, startBotBtn, stopBotBtn;
+        let twitchUsernameInput, botStatus, botError, botUsernameConnected, startBotBtn, stopBotBtn;
         const socket = io();
 
         function getTokenFromLocalStorage() {
@@ -278,16 +281,14 @@
         connectSocket();
         setupEventListeners();
         checkTokenAndSession();
-        checkBotStatus();
     }
 
     function updateDedsafioTable(data) {
-        const {users} = data;
         const tableBody = document.querySelector('#dedsafioTable tbody');
         
         if (hasUnsavedChanges) {
             // Si hay cambios no guardados, solo actualiza los datos que no han cambiado
-            users.forEach((user, index) => {
+            data.forEach((user, index) => {
                 const existingRow = tableBody.rows[index];
                 if (existingRow) {
                     const usernameInput = existingRow.querySelector('.username-input');
@@ -306,7 +307,7 @@
         } else {
             // Si no hay cambios pendientes, actualiza toda la tabla
             tableBody.innerHTML = '';
-            users.forEach((user) => addNewRow(user));
+            data.forEach((user) => addNewRow(user));
         }
     }
 
@@ -360,35 +361,19 @@
             });
     }
 
-    function checkBotStatus() {
-        const token = getTokenFromLocalStorage();
-        const botStatus = document.getElementById('botStatus');
-        const botError = document.getElementById('botError');
-        const startBotBtn = document.getElementById('startBotBtn');
-        const stopBotBtn = document.getElementById('stopBotBtn');
-        const twitchUsernameInput = document.getElementById('twitchUsername');
+    function checkBotStatus(data) {
+        console.log('Bot status:', data);
+        botStatus.textContent = data ? `Estado del bot: ${data.status === 'running' ? `Activo, hora: ${data.datetimeStart}` : `Inactivo hora: ${data.datetimeEnd}`}` : 'Cargando estado del bot...';
+        botStatus.className = data && data.status === 'running' ? 'status-active' : 'status-inactive';
+        startBotBtn.disabled = data && data.status === 'running';
+        stopBotBtn.disabled = data && data.status !== 'running';
+        twitchUsernameInput.disabled = data && data.status === 'running';
+        //colocar la hora de inicio del bot
 
-        fetch('/bot_status', {
-            method: 'GET',
-            headers: {
-                'Authorization': `Bearer ${token}`
-            }
-        })
-        .then(response => {
-            if (!response.ok) throw new Error('Error al obtener el estado del bot');
-            return response.json();
-        })
-        .then(data => {
-            botStatus.textContent = `Estado del bot: ${data.status === 'running' ? 'Activo' : 'Inactivo'}`;
-            botStatus.className = data.status === 'running' ? 'status-active' : 'status-inactive';
-            startBotBtn.disabled = data.status === 'running';
-            stopBotBtn.disabled = data.status !== 'running';
-            twitchUsernameInput.disabled = data.status === 'running';
-        })
-        .catch(error => {
-            botError.textContent = error.message;
-            botError.style.display = 'block';
-        });
+
+
+        botUsernameConnected.textContent = data.username !== '' ? `Conectado al canal de ${data.username}` : 'No esta conectado a ningún canal';
+
     }
 
     function setupEventListeners() {
@@ -397,13 +382,19 @@
         botError = document.getElementById('botError');
         startBotBtn = document.getElementById('startBotBtn');
         stopBotBtn = document.getElementById('stopBotBtn');
+        botStatus = document.getElementById('botStatus');
+        botUsernameConnected = document.getElementById('username-channel-connected');
+        startBotBtn = document.getElementById('startBotBtn');
+        stopBotBtn = document.getElementById('stopBotBtn');
+        twitchUsernameInput = document.getElementById('twitchUsername');
 
 
         document.getElementById('checkTokenBtn').addEventListener('click', checkTokenAndSession);
         document.getElementById('newTokenBtn').addEventListener('click', requestNewToken);
         document.getElementById('startBotBtn').addEventListener('click', startBot);
         document.getElementById('stopBotBtn').addEventListener('click', stopBot);
-        document.getElementById('openAdminBtn').addEventListener('click', () => window.open('/admin', '_blank'));
+        document.getElementById('openAdminBtnqueens').addEventListener('click', () => window.open('/admin-queensleague', '_blank'));
+        document.getElementById('openAdminBtndedsafio').addEventListener('click', () => window.open('/admin-dedsafio', '_blank'));
 
         document.getElementById('addRowBtn').addEventListener('click', () => {
             addNewRow();
@@ -442,10 +433,17 @@
                     return response.json();
                 })
                 .then(data => {
-                    botStatus.textContent = 'Bot iniciado correctamente';
+                    botStatus.textContent = 'Estado del bot: Activo';
                     botStatus.className = 'status-active';
                     botError.style.display = 'none';
-                    checkBotStatus(); // Actualizar el estado después de iniciar
+
+                    twitchUsernameInput.disabled = true;
+                    
+                    startBotBtn.disabled = true;
+                    stopBotBtn.disabled = false;
+
+                    botUsernameConnected.textContent = `Conectado al canal de ${twitchUsername}`;
+
                 })
                 .catch(error => {
                     botError.textContent = error.message;
@@ -468,9 +466,15 @@
                     return response.json();
                 })
                 .then(data => {
-                    botStatus.textContent = 'Bot detenido correctamente';
+                    botStatus.textContent = 'Estado del bot: Inactivo';
                     botStatus.className = 'status-inactive';
-                    checkBotStatus(); // Actualizar el estado después de detener
+                    
+                    startBotBtn.disabled = false;
+                    stopBotBtn.disabled = true;
+                    twitchUsernameInput.disabled = false;
+
+                    botUsernameConnected.textContent = 'No esta conectado a ningún canal';
+
                 })
                 .catch(error => {
                     botError.textContent = error.message;
@@ -564,7 +568,9 @@
 
         socket.on("update", function (data) {
           console.log("Received update:", data);
-          updateDedsafioTable(data);
+          updateDedsafioTable(data.users);
+          checkBotStatus(data.botinfo);
+          updateOverlayButtons(data.overlayType);
         });
 
     }

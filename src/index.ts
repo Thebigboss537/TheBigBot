@@ -1,5 +1,4 @@
 import { logger } from './utils/logger';
-import { initializeBot } from './bot';
 import { connectDatabase } from './database';
 import { startWebServer } from './web/server';
 

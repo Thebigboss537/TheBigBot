@@ -20,7 +20,7 @@ import { TokenManager } from "../auth/tokenmanager";
 import { authMiddleware, softAuthCheck } from "./authMiddleware";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
-import { getBotStatus, initializeBot, stopBot } from "../bot";
+import { getBotStatus, initializeBot, stopBot, getBotInfo } from "../bot";
 import cookieParser from "cookie-parser";
 
 interface User {
@@ -69,6 +69,7 @@ export async function startWebServer(): Promise<http.Server> {
   const port: number = config.PORT ? parseInt(config.PORT) : 3000;
 
   console.log("Dominio:", domain);
+  console.log("Puerto:", port);
 
   const io: Server = new Server(server, {
     cors: {
@@ -97,6 +98,10 @@ export async function startWebServer(): Promise<http.Server> {
 }
 
 function setupRoutes(app: express.Application, io: Server) {
+  app.get('/ping', (req, res) => {
+    res.status(200).send('pong');
+  });
+  
   app.get("/", (req: express.Request, res: express.Response) => {
     //retornar al login
     res.redirect("/login");
@@ -343,10 +348,11 @@ async function getData(type: string) {
     ]);
     return { type: 'dedsafio', dedsafio: dedsafioData, positionsAndVisibility };
   } else if (type === 'dashboard') {
-    const [dedsafioData] = await Promise.all([
-      getDedsafio()
+    const [dedsafioData, botinfo] = await Promise.all([
+      getDedsafio(),
+      await getBotInfo()
     ]);
-    return { type: 'dashboard', users: dedsafioData };
+    return { type: 'dashboard', users: dedsafioData, botinfo: botinfo, overlayType: currentOverlayType };
   } else {
     throw new Error('Invalid data type');
   } 

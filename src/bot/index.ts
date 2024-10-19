@@ -14,9 +14,13 @@ import { config } from "../utils/config";
 import { prediction } from "../interfaces/predictions";
 import { Server } from "socket.io";
 
+
+let datetimeStart: string = "";
+let datetimeEnd: string = "";
 let BOT_USER_ID: string = "";
 const CLIENT_ID: string = config.CLIENTID || "";
 let CHAT_CHANNEL_USER_ID = "";
+let TWITCH_USERNAME: string = "";
 const predictionRegex: RegExp = /^(\d{1,2})-(\d{1,2})$/;
 const EVENTSUB_WEBSOCKET_URL: string = "wss://eventsub.wss.twitch.tv/ws";
 let io: Server;
@@ -77,6 +81,8 @@ export async function initializeBot(
 
   await getUserId(twitchUsername);
 
+  TWITCH_USERNAME = twitchUsername;
+
   const websocketClient = startWebSocketClient();
   botWebSocket = websocketClient;
 
@@ -94,6 +100,7 @@ export async function initializeBot(
   }, 60000); // Run every minute, adjust as needed
 
   botStatus = "running";
+  datetimeStart = new Date().toString();
   console.log(`Bot initialized and connected to ${twitchUsername} chat`);
 }
 
@@ -108,12 +115,25 @@ export async function stopBot() {
     botInterval = null;
   }
 
+  CHAT_CHANNEL_USER_ID = "";
+  TWITCH_USERNAME = "";
+
   botStatus = "stopped";
+  datetimeEnd = new Date().toString();
   console.log("Bot stopped");
 }
 
-export function getBotStatus(): "running" | "stopped" {
+export async function getBotStatus(): Promise<"running" | "stopped"> {
   return botStatus;
+}
+
+export async function getBotInfo () {
+  return {
+    username: TWITCH_USERNAME,
+    status: botStatus,
+    datetimeStart,
+    datetimeEnd
+  }
 }
 
 async function waitForValidToken(): Promise<void> {
@@ -223,6 +243,13 @@ async function handleWebSocketMessage(data: WebSocketMessage): Promise<void> {
                 );
               }
             }
+          }
+
+          if (data.payload.event?.message.text.toString() == "!ping") {
+            console.log(
+              `MSG usuarioAtenticado: ${isUserAuthorized} #${data.payload.event?.broadcaster_user_login} <${data.payload.event?.chatter_user_login}> ${data.payload.event?.message.text}`
+            );
+            await sendChatMessage("pong");
           }
 
           if (data.payload.event?.message.text.toString() == "!help") {

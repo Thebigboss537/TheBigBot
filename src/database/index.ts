@@ -1,4 +1,4 @@
-import sqlite3 from 'sqlite3';
+import sqlite3, { CONSTRAINT } from 'sqlite3';
 import { open, Database } from 'sqlite';
 import { config } from '../utils/config';
 import bcrypt from 'bcrypt';
@@ -86,6 +86,19 @@ export async function connectDatabase() {
     visible INTEGER DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS ad_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      message TEXT NOT NULL,
+      fragments TEXT, -- JSON string de los fragmentos
+      timer INTEGER DEFAULT 30,
+      x REAL DEFAULT 0,
+      y REAL DEFAULT 0,
+      visible INTEGER DEFAULT 1,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
@@ -233,4 +246,35 @@ export async function savePositionsAndVisibilityDedsafio(positions: { x: number,
 
 export async function getUser(username: string) {
   return db.get('SELECT * FROM users WHERE username = ?', [username]);
+}
+
+export async function saveAdMessage(messageText: string, fragments: MessageFragment[]) {
+  //consultar el ultimo mensaje para sacar las pocisiones, visibilidad y timer
+  const data = await getLatestAdMessage();
+
+  console.log(data);
+
+  if(data){
+    console.log('si hay datos');
+    return db.run('INSERT INTO ad_messages (message, fragments, x, y, visible, timer) VALUES (?, ?, ?, ?, ?, ?)', [messageText, JSON.stringify(fragments), data.x, data.y, data.visible, data.timer]);	
+  }else{
+    console.log('no hay datos');
+    return db.run('INSERT INTO ad_messages (message, fragments) VALUES (?, ?)', [messageText, JSON.stringify(fragments)]);
+  }
+}
+
+export async function updateAdTimer(seconds: number) {
+  // Actualizamos el timer del mensaje más reciente
+  return db.run('UPDATE ad_messages SET timer = ? WHERE id = (SELECT MAX(id) FROM ad_messages)', [seconds]);
+}
+
+export async function getLatestAdMessage() {
+  return db.get('SELECT * FROM ad_messages ORDER BY id DESC LIMIT 1');
+}
+
+export async function updateAdPosition(x: number, y: number, visible: boolean) {
+  return db.run(
+    'UPDATE ad_messages SET x = ?, y = ?, visible = ? WHERE id = (SELECT MAX(id) FROM ad_messages)',
+    [x, y, visible ? 1 : 0]
+  );
 }

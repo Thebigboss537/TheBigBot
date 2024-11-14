@@ -46,8 +46,8 @@
         background: linear-gradient(to right, #2c2c2c, #3a3a3a);
         border-radius: 5px;
         padding: 2px;
-        border-left: 3px solid #ffffff;
-        border-right: 3px solid #ff69b4;
+        border-left: 3px solid #ff69b4;
+        border-right: 3px solid #5f33ff;
         margin-bottom: 4px;
       }
 
@@ -78,7 +78,7 @@
       }
 
       .team-name {
-        font-size: 1.2rem;
+        font-size: 1.1rem;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -183,9 +183,9 @@
 
       const teamLogos = {
         "homeTeam":
-          "https://queensleague.pro/_ipx/s_176x176/kama/production/team/616952484.png",
-        "awayTeam":
           "https://queensleague.pro/_ipx/s_176x176/kama/production/team/483113209.png",
+        "awayTeam":
+          "https://queensleague.pro/_ipx/s_176x176/kama/production/team/203289617.png",
       };
 
       function getToken() {
@@ -241,7 +241,7 @@
 
         const homeNameDiv = document.createElement("div");
         homeNameDiv.className = "team-name";
-        homeNameDiv.textContent = "Olimpo United";
+        homeNameDiv.textContent = "Real Titán FC";
         homeTeamDiv.appendChild(homeNameDiv);
 
         scoreContainer.appendChild(homeTeamDiv);
@@ -260,7 +260,7 @@
 
         const awayNameDiv = document.createElement("div");
         awayNameDiv.className = "team-name";
-        awayNameDiv.textContent = "Real Titán FC";
+        awayNameDiv.textContent = "Las Aliens FC";
         awayTeamDiv.appendChild(awayNameDiv);
 
         const awayLogo = document.createElement("img");

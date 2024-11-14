@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - Ad Message</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Montserrat', sans-serif;
+            color: #ffffff;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            background-color: #1a1a1a;
+        }
+
+        #playersContainer {
+            position: relative;
+            width: 1920px;
+            height: 1080px;
+            transform-origin: top left;
+        }
+
+        #adMessage {
+            position: absolute;
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            font-size: 48px;
+            font-weight: 600;
+            cursor: move;
+            user-select: none;
+            border: 2px solid #ff69b4;
+            transition: opacity 0.3s ease;
+            letter-spacing: 0.5px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+            position: relative;
+        }
+
+        #adMessage.hidden {
+            opacity: 0.5;
+        }
+
+        #resolutionReference {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 1920px;
+            height: 1080px;
+            border: 2px dashed #ff69b4;
+            pointer-events: none;
+            z-index: 1000;
+            opacity: 1;
+            box-sizing: border-box;
+            transition: opacity 0.3s ease;
+        }
+
+        #messageContent {
+            display: block;
+            min-height: 1em;
+        }
+
+        .controls {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+            z-index: 1002;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            background-color: #4caf50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background-color 0.3s ease;
+        }
+
+        .btn:hover {
+            background-color: #45a049;
+        }
+
+        .visibility-toggle {
+            position: absolute;
+            top: -40px;
+            right: 0;
+            background-color: rgba(0, 0, 0, 0.8);
+            border: 2px solid #ff69b4;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            z-index: 1001;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            min-width: 100px;
+            justify-content: center;
+        }
+
+        .visibility-toggle:hover {
+            background-color: rgba(0, 0, 0, 0.9);
+            transform: scale(1.05);
+        }
+
+        #toggleReferenceButton {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            z-index: 1001;
+        }
+    </style>
+</head>
+<body>
+    <div id="playersContainer">
+        <div id="resolutionReference"></div>
+        <div id="adMessage">
+            <button class="visibility-toggle" title="Clic para cambiar la visibilidad del mensaje">
+                <span class="visibility-text">Visible</span> 👁️
+            </button>
+            <span id="messageContent">Mensaje de ejemplo</span>
+        </div>
+    </div>
+    <div class="controls">
+        <button id="toggleReferenceButton" class="btn">Toggle Reference Frame</button>
+        <button id="saveButton" class="btn">Guardar Posición</button>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.9.1/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.9.1/Draggable.min.js"></script>
+    <script>
+        const socket = io();
+        let localPositions = null;
+        let hasUnsavedChanges = false;
+        let isReferenceVisible = true;
+
+        function getToken() {
+            return localStorage.getItem('token');
+        }
+
+        function ensureReferenceFrameExists() {
+            let reference = document.getElementById('resolutionReference');
+            if (!reference) {
+                console.log('Elemento de referencia no encontrado, creándolo dinámicamente');
+                reference = document.createElement('div');
+                reference.id = 'resolutionReference';
+                const container = document.getElementById('playersContainer');
+                if (container) {
+                    container.prepend(reference);
+                } else {
+                    console.error('No se pudo encontrar el contenedor');
+                    return null;
+                }
+            }
+            return reference;
+        }
+
+        function adjustPredictionsContainer() {
+            const container = document.getElementById('playersContainer');
+            const scale = Math.min(
+                window.innerWidth / 1920,
+                window.innerHeight / 1080
+            );
+            container.style.transform = `scale(${scale})`;
+            console.log('Ajuste aplicado. Escala:', scale);
+        }
+
+        function toggleReferenceFrame() {
+            const reference = ensureReferenceFrameExists();
+            if (reference) {
+                isReferenceVisible = !isReferenceVisible;
+                reference.style.opacity = isReferenceVisible ? '1' : '0';
+                console.log('Estado del marco de referencia:', isReferenceVisible ? 'visible' : 'oculto');
+            }
+        }
+
+        function initializeReferenceFrame() {
+            const reference = ensureReferenceFrameExists();
+            const toggleButton = document.getElementById('toggleReferenceButton');
+
+            if (reference && toggleButton) {
+                reference.style.opacity = '1';
+                toggleButton.addEventListener('click', toggleReferenceFrame);
+                console.log('Marco de referencia inicializado');
+            }
+        }
+
+        function initDraggable() {
+            Draggable.create("#adMessage", {
+                type: "x,y",
+                bounds: "#playersContainer",
+                onDragEnd: function() {
+                    hasUnsavedChanges = true;
+                }
+            });
+        }
+
+        function toggleVisibility() {
+            const adMessage = document.getElementById('adMessage');
+            const visibilityText = document.querySelector('.visibility-text');
+            adMessage.classList.toggle('hidden');
+            if (visibilityText) {
+                visibilityText.textContent = adMessage.classList.contains('hidden') ? 'Oculto' : 'Visible';
+            }
+            hasUnsavedChanges = true;
+        }
+
+        function updatePosition(position) {
+            if (!hasUnsavedChanges) {
+                const adMessage = document.getElementById('adMessage');
+                const visibilityText = document.querySelector('.visibility-text');
+                gsap.set(adMessage, {
+                    x: position.x,
+                    y: position.y
+                });
+                adMessage.classList.toggle('hidden', !position.visible);
+                if (visibilityText) {
+                    visibilityText.textContent = position.visible ? 'Visible' : 'Oculto';
+                }
+            }
+        }
+
+        function savePosition() {
+            const adMessage = document.getElementById('adMessage');
+            const transform = new WebKitCSSMatrix(window.getComputedStyle(adMessage).transform);
+            const position = {
+                x: transform.m41,
+                y: transform.m42,
+                visible: !adMessage.classList.contains('hidden')
+            };
+
+            socket.emit('saveAdPosition', {
+                position,
+                token: getToken()
+            });
+            hasUnsavedChanges = false;
+        }
+
+        socket.on('connect', () => {
+            socket.emit('joinRoom', 'ad');
+        });
+
+        socket.on('update', (data) => {
+            if (data.type === 'ad') {
+                document.getElementById('messageContent').textContent = data.message || 'Mensaje de ejemplo';
+                updatePosition(data.position);
+            }
+        });
+
+        socket.on("positionSaved", function (response) {
+            if (response.success) {
+                alert("Posiciones y visibilidad guardadas con éxito");
+            } else {
+                alert("Error al guardar las posiciones y visibilidad: " + response.error);
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initDraggable();
+            adjustPredictionsContainer();
+            initializeReferenceFrame();
+            
+            window.addEventListener('resize', adjustPredictionsContainer);
+            document.querySelector('.visibility-toggle').addEventListener('click', toggleVisibility);
+            document.getElementById('saveButton').addEventListener('click', savePosition);
+        });
+
+        window.addEventListener('beforeunload', () => {
+            socket.emit('leaveRoom', 'ad');
+        });
+    </script>
+</body>
+</html>

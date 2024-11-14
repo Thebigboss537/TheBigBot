@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ad Overlay</title>
+    <!-- Importar Montserrat -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            background-color: transparent;
+            font-family: 'Montserrat', sans-serif;
+        }
+
+        #adContainer {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        #adMessage {
+            position: absolute;
+            background-color: rgba(0, 0, 0, 0.8);
+            color: #ff69b4;
+            padding: 10px 20px;
+            border-radius: 5px;
+            font-size: 48px;
+            font-weight: 600;
+            white-space: nowrap;
+            opacity: 0;
+            transform: translateX(100vw);
+            transition: opacity 0.5s ease;
+            letter-spacing: 0.5px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            flex-wrap: nowrap;
+        }
+
+        .twitch-emote {
+            display: inline-block;
+            vertical-align: middle;
+            height: 48px;
+            margin: 0 3px;
+            object-fit: contain;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .mention {
+            color: #00b5e5;
+            font-weight: bold;
+        }
+
+        @keyframes slideMessage {
+            0% {
+                transform: translateX(100vw);
+                opacity: 1;
+            }
+            10% {
+                opacity: 1;
+            }
+            90% {
+                opacity: 1;
+            }
+            100% {
+                transform: translateX(-100%);
+                opacity: 1;
+            }
+        }
+
+        .sliding {
+            animation: slideMessage linear forwards;
+        }
+    </style>
+</head>
+<body>
+    <div id="adContainer">
+        <div id="adMessage"></div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        let messageTimer = null;
+        let currentMessage = '';
+        let currentTimer = 30;
+        let isVisible = true;
+        let isAnimating = false;
+
+        class MessageParser {
+            static getEmoteUrl(emoteId) {
+                return `https://static-cdn.jtvnw.net/emoticons/v2/${emoteId}/default/dark/2.0`;
+            }
+
+            static parseMessageWithFragments(fragments) {
+                if (!fragments) return null;
+
+                try {
+                    const parsedFragments = JSON.parse(fragments);
+                    return parsedFragments.map(fragment => {
+                        switch (fragment.type) {
+                            case 'text':
+                                return fragment.text;
+                            case 'emote':
+                                if (fragment.emote) {
+                                    const emoteUrl = this.getEmoteUrl(fragment.emote.id);
+                                    return `<img class="twitch-emote" 
+                                        src="${emoteUrl}"
+                                        alt="${fragment.text}"
+                                        title="${fragment.text}">`;
+                                }
+                                return fragment.text;
+                            case 'mention':
+                                return `<span class="mention">${fragment.text}</span>`;
+                            default:
+                                return fragment.text;
+                        }
+                    }).join('');
+                } catch (error) {
+                    console.error('Error parsing message fragments:', error);
+                    return null;
+                }
+            }
+        }
+
+        class MessageAnimator {
+            constructor() {
+                this.element = document.getElementById('adMessage');
+                this.animationEndHandler = this.handleAnimationEnd.bind(this);
+                this.element.addEventListener('animationend', this.animationEndHandler);
+            }
+
+            async showMessage(message, fragments, duration) {
+                if (isAnimating) {
+                    await this.reset();
+                }
+
+                return new Promise((resolve) => {
+                    isAnimating = true;
+                    
+                    const processedContent = fragments ? 
+                        MessageParser.parseMessageWithFragments(fragments) : 
+                        message;
+                    
+                    this.element.innerHTML = processedContent || message;
+                    this.element.style.animationDuration = `${duration}s`;
+                    this.element.classList.remove('hidden');
+                    
+                    requestAnimationFrame(() => {
+                        this.element.classList.add('sliding');
+                    });
+
+                    this.element.addEventListener('animationend', () => {
+                        resolve();
+                    }, { once: true });
+                });
+            }
+
+            async reset() {
+                isAnimating = false;
+                this.element.classList.remove('sliding');
+                this.element.classList.add('hidden');
+                
+                return new Promise(resolve => {
+                    requestAnimationFrame(() => {
+                        requestAnimationFrame(resolve);
+                    });
+                });
+            }
+
+            async handleAnimationEnd() {
+                await this.reset();
+            }
+        }
+
+        const animator = new MessageAnimator();
+        let currentFragments = null;
+
+        async function animationCycle() {
+            if (!currentMessage || !isVisible) {
+                await animator.reset();
+                scheduleNextAnimation();
+                return;
+            }
+
+            try {
+                const duration = Math.max(10, currentMessage.length * 0.15);
+                await animator.showMessage(currentMessage, currentFragments, duration);
+                scheduleNextAnimation();
+            } catch (error) {
+                console.error('Error en el ciclo de animación:', error);
+                scheduleNextAnimation();
+            }
+        }
+
+        function scheduleNextAnimation() {
+            if (messageTimer) {
+                clearTimeout(messageTimer);
+            }
+            messageTimer = setTimeout(animationCycle, currentTimer * 1000);
+        }
+
+        function updateMessagePosition(y) {
+            const adMessage = document.getElementById('adMessage');
+            adMessage.style.top = `${y}px`;
+        }
+
+        socket.on('connect', () => {
+            console.log('Conectado al servidor');
+            socket.emit('joinRoom', 'ad');
+        });
+
+        socket.on('update', (data) => {
+            console.log('Received update:', data);
+            if (data.type === 'ad') {
+                const messageChanged = currentMessage !== data.message;
+                const fragmentsChanged = currentFragments !== data.fragments;
+                const timerChanged = currentTimer !== data.timer;
+                const visibilityChanged = isVisible !== data.position.visible;
+
+                currentMessage = data.message;
+                currentFragments = data.fragments;
+                currentTimer = data.timer;
+                isVisible = data.position.visible;
+                updateMessagePosition(data.position.y);
+
+                if (messageChanged || fragmentsChanged || timerChanged || visibilityChanged) {
+                    animator.reset().then(() => {
+                        if (messageTimer) {
+                            clearTimeout(messageTimer);
+                        }
+                        animationCycle();
+                    });
+                }
+            }
+        });
+
+        socket.on('reloadOverlay', () => {
+            window.location.reload();
+        });
+
+        socket.on('disconnect', () => {
+            console.log('Desconectado del servidor. Intentando reconexión...');
+            setTimeout(() => {
+                socket.connect();
+            }, 5000);
+        });
+
+        // Iniciar el ciclo de animación cuando se carga la página
+        animationCycle();
+
+        // Limpieza al cerrar
+        window.addEventListener('beforeunload', () => {
+            socket.emit('leaveRoom', 'ad');
+            if (messageTimer) {
+                clearTimeout(messageTimer);
+            }
+        });
+    </script>
+</body>
+</html>

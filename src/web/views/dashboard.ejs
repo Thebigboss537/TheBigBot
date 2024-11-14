@@ -185,6 +185,7 @@
             <div style="margin-top: 15px;">
                 <button id="openAdminBtnqueens" class="admin-btn">Abrir Panel de Administración de queensleague</button>
                 <button id="openAdminBtndedsafio" class="admin-btn">Abrir Panel de Administración de dedsafio</button>
+                <button id="openAdminBtnad" class="admin-btn">Abrir Panel de Administración de Anuncios</button>
             </div>
 
             
@@ -198,6 +199,7 @@
                 <button id="blankOverlayBtn" class="btn btn-secondary overlay-btn">Overlay en Blanco</button>
                 <button id="queensleagueOverlayBtn" class="btn btn-primary overlay-btn">QueensLeague</button>
                 <button id="dedsafioOverlayBtn" class="btn btn-success overlay-btn">Dedsafio</button>
+                <button id="adOverlayBtn" class="btn btn-info overlay-btn">Ad Overlay</button>
             </div>
         </div>
 
@@ -395,6 +397,8 @@
         document.getElementById('stopBotBtn').addEventListener('click', stopBot);
         document.getElementById('openAdminBtnqueens').addEventListener('click', () => window.open('/admin-queensleague', '_blank'));
         document.getElementById('openAdminBtndedsafio').addEventListener('click', () => window.open('/admin-dedsafio', '_blank'));
+        document.getElementById('openAdminBtnad').addEventListener('click', () => window.open('/admin-ad', '_blank'));
+        
 
         document.getElementById('addRowBtn').addEventListener('click', () => {
             addNewRow();
@@ -406,6 +410,7 @@
         document.getElementById('blankOverlayBtn').addEventListener('click', () => changeOverlayType('blank'));
         document.getElementById('queensleagueOverlayBtn').addEventListener('click', () => changeOverlayType('queensleague'));
         document.getElementById('dedsafioOverlayBtn').addEventListener('click', () => changeOverlayType('dedsafio'));
+        document.getElementById('adOverlayBtn').addEventListener('click', () => changeOverlayType('ad'));
     }
 
     function startBot() {

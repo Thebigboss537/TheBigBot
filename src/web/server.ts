@@ -11,7 +11,9 @@ import {
   savePositionsAndVisibilityDedsafio,
   getPositionsAndVisibilityDedsafio,
   getDedsafio,
-  saveDedsafio
+  saveDedsafio,
+  getLatestAdMessage, 
+  updateAdPosition
 } from "../database";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -117,6 +119,10 @@ function setupRoutes(app: express.Application, io: Server) {
   
   app.get("/admin-dedsafio", softAuthCheck("admin-dedsafio"), (req: express.Request, res: express.Response) => {
     res.render("admin-dedsafio");
+  });
+
+  app.get("/admin-ad", softAuthCheck("admin-ad"), (req: express.Request, res: express.Response) => {
+    res.render("admin-ad");
   });
 
   app.post("/api/saveDedsafioTable", async (req: express.Request, res: express.Response) => {
@@ -311,6 +317,23 @@ function setupSocketIO(io: Server) {
       }
     });
 
+    socket.on("saveAdPosition", async (data) => {
+      try {
+          jwt.verify(data.token, JWT_SECRET);
+          await updateAdPosition(
+              data.position.x,
+              data.position.y,
+              data.position.visible
+          );
+          socket.emit("positionSaved", { success: true });
+      } catch (error) {
+          socket.emit("positionSaved", {
+              success: false,
+              error: (error as Error).message
+          });
+      }
+    });
+
     socket.on("disconnect", () => {
       console.log("Client disconnected");
     });
@@ -320,7 +343,7 @@ function setupSocketIO(io: Server) {
 }
 
 async function broadcastUpdates(io: Server) {
-  const rooms = ['queensleague', 'dedsafio', 'dashboard'];
+  const rooms = ['queensleague', 'dedsafio', 'dashboard', 'ad'];
   for (const room of rooms) {
     if ((io.sockets.adapter.rooms.get(room)?.size ?? 0) > 0) {
       const data = await getData(room);
@@ -335,6 +358,7 @@ async function sendData(socket: Socket, room: string) {
 }
 
 async function getData(type: string) {
+  console.log(`Getting data for room: ${type}`);
   if (type === 'queensleague') {
     const [topPredictions, positionsAndVisibility] = await Promise.all([
       getTopPredictions(),
@@ -353,7 +377,20 @@ async function getData(type: string) {
       await getBotInfo()
     ]);
     return { type: 'dashboard', users: dedsafioData, botinfo: botinfo, overlayType: currentOverlayType };
-  } else {
+  } else if (type === 'ad') {
+    const adMessage = await getLatestAdMessage();
+    return { 
+        type: 'ad',
+        message: adMessage?.message || '',
+        fragments: adMessage?.fragments || null,
+        timer: adMessage?.timer || 30,
+        position: {
+            x: adMessage?.x || 0,
+            y: adMessage?.y || 0,
+            visible: adMessage?.visible === 1
+        }
+    };
+} else {
     throw new Error('Invalid data type');
   } 
 }

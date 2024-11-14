@@ -9,6 +9,8 @@ import {
   saveWinnersPrediction,
   clearWinnersPredictions,
   getWinnersPrediction,
+  saveAdMessage, 
+  updateAdTimer
 } from "../database";
 import { config } from "../utils/config";
 import { prediction } from "../interfaces/predictions";
@@ -34,7 +36,7 @@ const tokenManager = new TokenManager();
 
 let validToken: string;
 
-interface WebSocketMessage {
+export interface WebSocketMessage {
   metadata: {
     message_type: string;
     subscription_type?: string;
@@ -49,12 +51,24 @@ interface WebSocketMessage {
       chatter_user_id: string;
       message: {
         text: string;
+        fragments: [{
+          type: string;
+          text: string;
+          cheermote: string;
+          emote: {
+            id: string;
+            emote_set_id: string;
+            owner_id: string;
+            format: string[];
+          };
+          mention: string;
+        }];
       };
-      badges: {
+      badges: [{
         set_id: string;
         id: string;
         info: string;
-      };
+      }];
     };
   };
 }
@@ -377,6 +391,34 @@ async function handleWebSocketMessage(data: WebSocketMessage): Promise<void> {
             } else {
               const remainingTime = Math.ceil((SHOW_PLAYERS_COOLDOWN - (currentTime - lastShowPlayersTime)) / 1000);
               console.log(`Comando !team bloqueado. Tiempo restante: ${remainingTime} segundos`);
+            }
+          }
+
+          if (data.payload.event?.message.text.startsWith("!ad ") && isUserAuthorized) {
+            const messageText = data.payload.event.message.text;
+            const fragments = data.payload.event.message.fragments;
+
+            const processedFragments = fragments.map((fragment, index) => {
+              if (index === 0 && fragment.type === 'text' && fragment.text.startsWith('!ad ')) {
+                  return {
+                      ...fragment,
+                      text: fragment.text.substring(4) // Remover "!ad "
+                  };
+              }
+              return fragment;
+            });
+      
+            await saveAdMessage(messageText.substring(4), processedFragments);
+            await sendChatMessage("Mensaje de anuncio actualizado");
+          }
+
+          if (data.payload.event?.message.text.startsWith("!ad-timer") && isUserAuthorized) {
+            const seconds = parseInt(data.payload.event.message.text.split(" ")[1]);
+            if (!isNaN(seconds) && seconds > 0) {
+                await updateAdTimer(seconds);
+                await sendChatMessage(`Timer actualizado a ${seconds} segundos`);
+            } else {
+                await sendChatMessage("Por favor especifica un número válido de segundos");
             }
           }
 
